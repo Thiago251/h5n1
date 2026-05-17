@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Global H5N1 — Influenza Aviária</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e17;
+            --bg2: #111827;
+            --card: #1a2235;
+            --card2: #1f2a40;
+            --border: #2a3550;
+            --fg: #e8ecf4;
+            --fg2: #94a3b8;
+            --muted: #64748b;
+            --accent: #f97316;
+            --accent2: #fb923c;
+            --danger: #ef4444;
+            --danger2: #dc2626;
+            --warning: #eab308;
+            --success: #22c55e;
+            --info: #3b82f6;
+            --critical: #dc2626;
+            --high: #f97316;
+            --moderate: #eab308;
+            --low: #22c55e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* === HEADER === */
+        .header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 1000;
+            background: linear-gradient(180deg, rgba(10,14,23,0.97) 0%, rgba(10,14,23,0.85) 100%);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .header-logo {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--danger), var(--accent));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: #fff;
+            box-shadow: 0 0 20px rgba(249,115,22,0.3);
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .header-title span { color: var(--accent); }
+
+        .header-subtitle {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-stat {
+            text-align: center;
+            padding: 4px 14px;
+            border-radius: 8px;
+            background: var(--card);
+            border: 1px solid var(--border);
+        }
+
+        .header-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .header-stat-label {
+            font-size: 9px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-cases .header-stat-value { color: var(--accent); }
+        .stat-deaths .header-stat-value { color: var(--danger); }
+        .stat-cfr .header-stat-value { color: var(--warning); }
+        .stat-countries .header-stat-value { color: var(--info); }
+
+        /* === MAP === */
+        #map {
+            position: fixed;
+            top: 60px; left: 0; right: 0; bottom: 0;
+            z-index: 1;
+        }
+
+        .leaflet-container { background: var(--bg) !important; }
+
+        .leaflet-control-zoom {
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            overflow: hidden;
+        }
+
+        .leaflet-control-zoom a {
+            background: var(--card) !important;
+            color: var(--fg) !important;
+            border-bottom: 1px solid var(--border) !important;
+            width: 36px !important;
+            height: 36px !important;
+            line-height: 36px !important;
+            font-size: 16px !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: var(--card2) !important;
+        }
+
+        /* === SIDEBAR === */
+        .sidebar {
+            position: fixed;
+            top: 60px;
+            right: 0;
+            width: 380px;
+            bottom: 0;
+            z-index: 900;
+            background: linear-gradient(180deg, rgba(17,24,39,0.97), rgba(10,14,23,0.97));
+            backdrop-filter: blur(16px);
+            border-left: 1px solid var(--border);
+            overflow-y: auto;
+            transform: translateX(0);
+            transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+        }
+
+        .sidebar.collapsed { transform: translateX(100%); }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 76px;
+            right: 380px;
+            z-index: 901;
+            width: 36px; height: 36px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px 0 0 8px;
+            color: var(--fg);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+        }
+
+        .sidebar.collapsed + .sidebar-toggle { right: 0; }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-section-title i { color: var(--accent); font-size: 13px; }
+
+        /* === SUMMARY CARDS === */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .summary-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .summary-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+
+        .summary-card.cases::before { background: var(--accent); }
+        .summary-card.deaths::before { background: var(--danger); }
+        .summary-card.cfr::before { background: var(--warning); }
+        .summary-card.countries::before { background: var(--info); }
+
+        .summary-card-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .summary-card.cases .summary-card-value { color: var(--accent); }
+        .summary-card.deaths .summary-card-value { color: var(--danger); }
+        .summary-card.cfr .summary-card-value { color: var(--warning); }
+        .summary-card.countries .summary-card-value { color: var(--info); }
+
+        .summary-card-label {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .summary-card-sub {
+            font-size: 10px;
+            color: var(--fg2);
+            margin-top: 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* === TIMELINE === */
+        .timeline-item {
+            display: flex;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(42,53,80,0.5);
+        }
+
+        .timeline-item:last-child { border-bottom: none; }
+
+        .timeline-year {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            min-width: 50px;
+        }
+
+        .timeline-content {
+            flex: 1;
+        }
+
+        .timeline-text {
+            font-size: 12px;
+            color: var(--fg2);
+            line-height: 1.5;
+        }
+
+        .timeline-badge {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge-cases { background: rgba(249,115,22,0.15); color: var(--accent); }
+        .badge-deaths { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+        /* === COUNTRY LIST === */
+        .country-list-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .country-list-item:hover {
+            background: var(--card);
+            border-color: var(--border);
+        }
+
+        .country-list-item.active {
+            background: var(--card2);
+            border-color: var(--accent);
+        }
+
+        .country-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .country-dot.critical { background: var(--critical); box-shadow: 0 0 8px rgba(220,38,38,0.5); }
+        .country-dot.high { background: var(--high); box-shadow: 0 0 8px rgba(249,115,22,0.5); }
+        .country-dot.moderate { background: var(--moderate); box-shadow: 0 0 8px rgba(234,179,8,0.4); }
+        .country-dot.low { background: var(--low); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+
+        .country-info { flex: 1; }
+
+        .country-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .country-sub {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .country-cases {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        /* === LEGEND === */
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .legend-circle {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .legend-label {
+            font-size: 12px;
+            color: var(--fg2);
+        }
+
+        .legend-range {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-left: auto;
+        }
+
+        /* === POPUP === */
+        .leaflet-popup-content-wrapper {
+            background: var(--card) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5) !important;
+            padding: 0 !important;
+            overflow: hidden;
+            min-width: 320px;
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important;
+            width: auto !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            color: var(--fg) !important;
+        }
+
+        .leaflet-popup-tip {
+            background: var(--card) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important;
+        }
+
+        .leaflet-popup-close-button {
+            color: var(--muted) !important;
+            font-size: 20px !important;
+            top: 8px !important;
+            right: 10px !important;
+            z-index: 10;
+        }
+
+        .leaflet-popup-close-button:hover { color: var(--fg) !important; }
+
+        .popup-header {
+            padding: 16px 18px 12px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+
+        .popup-header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--danger), var(--accent));
+        }
+
+        .popup-country-name {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .popup-flag { font-size: 22px; }
+
+        .popup-risk-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+        }
+
+        .risk-critical { background: rgba(220,38,38,0.2); color: var(--critical); }
+        .risk-high { background: rgba(249,115,22,0.2); color: var(--high); }
+        .risk-moderate { background: rgba(234,179,8,0.2); color: var(--moderate); }
+        .risk-low { background: rgba(34,197,94,0.2); color: var(--low); }
+
+        .popup-body { padding: 14px 18px 18px; }
+
+        .popup-stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .popup-stat {
+            background: var(--bg2);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .popup-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .popup-stat-value.cases-val { color: var(--accent); }
+        .popup-stat-value.deaths-val { color: var(--danger); }
+        .popup-stat-value.cfr-val { color: var(--warning); }
+
+        .popup-stat-label {
+            font-size: 9px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        .popup-detail-section {
+            margin-top: 12px;
+        }
+
+        .popup-detail-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .popup-detail-title i { color: var(--accent); font-size: 11px; }
+
+        .popup-detail-text {
+            font-size: 12px;
+            color: var(--fg2);
+            line-height: 1.6;
+        }
+
+        .popup-year-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .popup-year-row:nth-child(odd) { background: rgba(26,34,53,0.5); }
+
+        .popup-year-label { color: var(--fg2); }
+        .popup-year-cases { color: var(--accent); font-weight: 600; }
+        .popup-year-deaths { color: var(--danger); font-weight: 600; }
+
+        .popup-tag {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 4px;
+            margin: 2px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .tag-clade { background: rgba(59,130,246,0.15); color: var(--info); }
+        .tag-source { background: rgba(139,92,246,0.15); color: #a78bfa; }
+        .tag-recent { background: rgba(249,115,22,0.15); color: var(--accent); }
+
+        .popup-bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 40px;
+            margin-top: 8px;
+        }
+
+        .popup-bar {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent), rgba(249,115,22,0.3));
+            border-radius: 2px 2px 0 0;
+            min-height: 2px;
+            position: relative;
+            transition: height 0.3s;
+        }
+
+        .popup-bar-label {
+            position: absolute;
+            bottom: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* === FILTER BAR === */
+        .filter-bar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--fg2);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        /* === ANIMATIONS === */
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+
+        .marker-pulse {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            animation: pulse-ring 2s ease-out infinite;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in { animation: fadeInUp 0.4s ease-out; }
+
+        /* === SCROLLBAR === */
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .sidebar { width: 100%; }
+            .sidebar-toggle { display: none; }
+            .header-stat { display: none; }
+        }
+
+        /* === BOTTOM BAR === */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0; left: 0; right: 380px;
+            z-index: 800;
+            background: linear-gradient(0deg, rgba(10,14,23,0.95), rgba(10,14,23,0.7));
+            backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: right 0.4s cubic-bezier(0.16,1,0.3,1);
+        }
+
+        .sidebar.collapsed ~ .bottom-bar { right: 0; }
+
+        .bottom-bar-text {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .bottom-bar-text strong { color: var(--fg2); }
+
+        .last-update {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .last-update-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse-ring 2s infinite;
+        }
+
+        /* Custom marker icon */
+        .custom-marker {
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .custom-marker:hover { transform: scale(1.3); z-index: 999 !important; }
+
+        .custom-marker.size-xs { width: 12px; height: 12px; }
+        .custom-marker.size-sm { width: 18px; height: 18px; }
+        .custom-marker.size-md { width: 24px; height: 24px; }
+        .custom-marker.size-lg { width: 32px; height: 32px; }
+        .custom-marker.size-xl { width: 40px; height: 40px; }
+
+        .custom-marker.level-critical { background: var(--critical); box-shadow: 0 0 15px rgba(220,38,38,0.6); }
+        .custom-marker.level-high { background: var(--high); box-shadow: 0 0 12px rgba(249,115,22,0.5); }
+        .custom-marker.level-moderate { background: var(--moderate); box-shadow: 0 0 10px rgba(234,179,8,0.4); }
+        .custom-marker.level-low { background: var(--low); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+
+        .marker-count {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .size-md .marker-count { font-size: 10px; }
+        .size-lg .marker-count { font-size: 12px; }
+        .size-xl .marker-count { font-size: 14px; }
+
+        /* Search */
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 14px 10px 36px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--fg);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input::placeholder { color: var(--muted); }
+        .search-input:focus { border-color: var(--accent); }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+    <div class="header-left">
+        <div class="header-logo"><i class="fas fa-virus"></i></div>
+        <div>
+            <div class="header-title">Mapa Global <span>H5N1</span></div>
+            <div class="header-subtitle">Influenza Aviária A(H5N1) — Vigilância em Tempo Real</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="header-stat stat-countries">
+            <div class="header-stat-value" id="statCountries">25</div>
+            <div class="header-stat-label">Paises</div>
+        </div>
+        <div class="header-stat stat-cases">
+            <div class="header-stat-value" id="statCases">1.003</div>
+            <div class="header-stat-label">Casos</div>
+        </div>
+        <div class="header-stat stat-deaths">
+            <div class="header-stat-value" id="statDeaths">481</div>
+            <div class="header-stat-label">Obitos</div>
+        </div>
+        <div class="header-stat stat-cfr">
+            <div class="header-stat-value" id="statCFR">48%</div>
+            <div class="header-stat-label">Letalidade</div>
+        </div>
+    </div>
+</header>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <!-- Resumo -->
+    <div class="sidebar-section">
+        <div class="sidebar-section-title"><i class="fas fa-chart-line"></i> Resumo Global (2003–2026)</div>
+        <div class="summary-grid">
+            <div class="summary-card cases">
+                <div class="summary-card-value">1.003</div>
+                <div class="summary-card-label">Casos Confirmados</div>
+                <div class="summary-card-sub">+26 em 2025 | +4 em 2026</div>
+            </div>
+            <div class="summary-card deaths">
+                <div class="summary-card-value">481</div>
+                <div class="summary-card-label">Obitos</div>
+                <div class="summary-card-sub">+11 em 2025 | +1 em 2026</div>
+            </div>
+            <div class="summary-card cfr">
+                <div class="summary-card-value">48%</div>
+                <div class="summary-card-label">Taxa de Letalidade</div>
+                <div class="summary-card-sub">Historica acumulada</div>
+            </div>
+            <div class="summary-card countries">
+                <div class="summary-card-value">25</div>
+                <div class="summary-card-label">Paises Afetados</div>
+                <div class="summary-card-sub">5 continentes</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="sidebar-section">
+        <div class="sidebar-section-title"><i class="fas fa-filter"></i> Filtrar Periodo</div>
+        <div class="filter-bar" id="filterBar">
+            <button class="filter-btn active" data-filter="all">Todos</button>
+            <button class="filter-btn" data-filter="2026">2026</button>
+            <button class="filter-btn" data-filter="2025">2025</button>
+            <button class="filter-btn" data-filter="2024">2024</button>
+            <button class="filter-btn" data-filter="2020s">2020–2024</button>
+            <button class="filter-btn" data-filter="2010s">2010–2019</button>
+            <button class="filter-btn" data-filter="2000s">2003–2009</button>
+        </div>
+    </div>
+
+    <!-- Busca -->
+    <div class="sidebar-section" style="padding-bottom:10px">
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-input" id="searchInput" placeholder="Buscar pais..." />
+        </div>
+    </div>
+
+    <!-- Lista de Paises -->
+    <div class="sidebar-section" style="border-bottom:none; padding-top:5px">
+        <div class="sidebar-section-title"><i class="fas fa-globe-americas"></i> Paises com Casos Confirmados</div>
+        <div id="countryList"></div>
+    </div>
+</aside>
+
+<!-- Sidebar Toggle -->
+<button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-chevron-right"></i></button>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+    <div class="bottom-bar-text">
+        Fontes: <strong>OMS/WHO</strong>, <strong>CDC</strong>, <strong>OPAS/PAHO</strong>, <strong>FAO/WOAH</strong> — Dados acumulados 2003–2026
+    </div>
+    <div class="last-update">
+        <div class="last-update-dot"></div>
+        Atualizado: Maio 2026
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ============================================
+// DADOS COMPLETOS H5N1 POR PAIS (2003–2026)
+// ============================================
+const countriesData = [
+    {
+        id: "eg", name: "Egito", flag: "🇪🇬", lat: 26.82, lng: 30.80,
+        totalCases: 359, totalDeaths: 120,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "critical",
+        clade: "2.2.2 (historico), 2.3.4.4b (recente)",
+        firstCase: "2006",
+        lastCase: "2022",
+        source: "Aves domesticas (perus, frangos), mercados de aves vivas",
+        notes: "Maior numero historico de casos humanos de H5N1 no mundo. Pico entre 2014–2016. A maioria dos casos estava ligada a exposicao a aves domesticas em areas rurais. Nenhum caso reportado desde 2022, mas o virus continua circulando em aves. Transmissao pessoa-a-pessoa nunca confirmada.",
+        yearlyData: { "2006": {c:18,d:10}, "2007": {c:25,d:9}, "2008": {c:8,d:3}, "2009": {c:39,d:4}, "2010": {c:29,d:13}, "2011": {c:39,d:15}, "2012": {c:11,d:5}, "2013": {c:4,d:3}, "2014": {c:15,d:6}, "2015": {c:136,d:39}, "2016": {c:10,d:3}, "2017": {c:3,d:1}, "2018": {c:1,d:0}, "2019": {c:0,d:0}, "2020": {c:0,d:0}, "2021": {c:0,d:0}, "2022": {c:2,d:1} }
+    },
+    {
+        id: "id", name: "Indonesia", flag: "🇮🇩", lat: -2.55, lng: 118.02,
+        totalCases: 200, totalDeaths: 168,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "critical",
+        clade: "2.1.3.2a (endemico)",
+        firstCase: "2005",
+        lastCase: "2019",
+        source: "Aves domesticas, mercados de aves vivas, criação de galinhas caipira",
+        notes: "Segundo pais com mais casos historicos. Alta letalidade (84%). O virus H5N1 clade 2.1.3.2a tornou-se endemico em aves na Indonesia. Ultimo caso humano reportado em 2019. Vigilancia continua sendo um desafio dado o tamanho do arquipelago e a criação extensiva de aves.",
+        yearlyData: { "2005": {c:20,d:13}, "2006": {c:55,d:45}, "2007": {c:42,d:37}, "2008": {c:24,d:20}, "2009": {c:21,d:19}, "2010": {c:8,d:7}, "2011": {c:9,d:8}, "2012": {c:9,d:8}, "2013": {c:3,d:3}, "2014": {c:2,d:2}, "2015": {c:2,d:2}, "2016": {c:1,d:1}, "2017": {c:2,d:2}, "2018": {c:0,d:0}, "2019": {c:2,d:1} }
+    },
+    {
+        id: "vn", name: "Vietna", flag: "🇻🇳", lat: 14.06, lng: 108.28,
+        totalCases: 139, totalDeaths: 64,
+        cases2025: 1, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "high",
+        clade: "2.3.2.1e (historico), 2.3.4.4b (recente)",
+        firstCase: "2003",
+        lastCase: "2025",
+        source: "Aves domesticas, patos, mercados de aves vivas",
+        notes: "Um dos primeiros paises afetados pelo H5N1 em 2003. Pico de casos em 2004–2005. Caso pediatrico com encefalite reportado em 2025 (clade 2.3.2.1e). O virus continua circulando em aves domesticas no delta do Mekong. Nenhuma transmissao sustentada entre humanos detectada.",
+        yearlyData: { "2003": {c:3,d:3}, "2004": {c:29,d:20}, "2005": {c:61,d:19}, "2006": {c:0,d:0}, "2007": {c:8,d:5}, "2008": {c:6,d:5}, "2009": {c:5,d:5}, "2010": {c:7,d:2}, "2011": {c:4,d:2}, "2012": {c:4,d:2}, "2013": {c:2,d:1}, "2014": {c:2,d:2}, "2015": {c:0,d:0}, "2016": {c:0,d:0}, "2017": {c:0,d:0}, "2018": {c:1,d:1}, "2019": {c:1,d:1}, "2020": {c:0,d:0}, "2021": {c:0,d:0}, "2022": {c:2,d:1}, "2024": {c:1,d:0}, "2025": {c:1,d:0} }
+    },
+    {
+        id: "cn", name: "China", flag: "🇨🇳", lat: 35.86, lng: 104.20,
+        totalCases: 55, totalDeaths: 32,
+        cases2025: 1, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "high",
+        clade: "2.3.2.1, 2.3.4.4b, 2.3.4.4h (H5N6)",
+        firstCase: "2003",
+        lastCase: "2025",
+        source: "Aves domesticas, mercados de aves vivas, aves aquaticas",
+        notes: "A maioria dos casos H5N1 ocorreu no sul e sudoeste do pais. China tambem reportou casos de H5N6 e H5N8. O caso de 2025 foi H5N1 (relatado ao lado de outros subtipos como H9N2 e H10N3). Grande diversidade de subtipos de influenza aviaria no pais. Vigilancia intensa em mercados de aves vivas.",
+        yearlyData: { "2003": {c:1,d:1}, "2005": {c:8,d:5}, "2006": {c:13,d:8}, "2007": {c:5,d:3}, "2008": {c:4,d:4}, "2009": {c:7,d:4}, "2010": {c:1,d:1}, "2011": {c:1,d:1}, "2013": {c:2,d:2}, "2014": {c:2,d:2}, "2015": {c:6,d:3}, "2017": {c:1,d:1}, "2020": {c:1,d:0}, "2022": {c:1,d:0}, "2025": {c:1,d:0} }
+    },
+    {
+        id: "kh", name: "Camboja", flag: "🇰🇭", lat: 12.57, lng: 104.99,
+        totalCases: 90, totalDeaths: 52,
+        cases2025: 14, deaths2025: 8, cases2026: 4, deaths2026: 0,
+        risk: "critical",
+        clade: "2.3.2.1e (reassortante com 2.3.4.4b)",
+        firstCase: "2004",
+        lastCase: "2026",
+        source: "Aves domesticas (frangos, patos), criacao de fundo de quintal",
+        notes: "Resurgencia dramatica desde 2023 com um virus reassortante entre o clade 2.3.2.1c/e endemico e o clade 2.3.4.4b global. Em 2025: 14 casos e 8 obitos (CFR 57%), muitos em criancas. Em 2026: 4 casos ate abril. Nenhuma transmissao pessoa-a-pessoa. Vacinacao de aves e campanhas educativas em andamento.",
+        yearlyData: { "2004": {c:0,d:0}, "2005": {c:4,d:4}, "2006": {c:2,d:2}, "2007": {c:1,d:1}, "2008": {c:1,d:1}, "2009": {c:1,d:0}, "2010": {c:1,d:1}, "2011": {c:2,d:1}, "2012": {c:3,d:3}, "2013": {c:26,d:14}, "2014": {c:4,d:3}, "2015": {c:0,d:0}, "2016": {c:0,d:0}, "2017": {c:0,d:0}, "2018": {c:0,d:0}, "2019": {c:0,d:0}, "2020": {c:0,d:0}, "2021": {c:0,d:0}, "2022": {c:0,d:0}, "2023": {c:6,d:3}, "2024": {c:11,d:8}, "2025": {c:14,d:8}, "2026": {c:4,d:0} }
+    },
+    {
+        id: "th", name: "Tailandia", flag: "🇹🇭", lat: 15.87, lng: 100.99,
+        totalCases: 25, totalDeaths: 17,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.1 (historico)",
+        firstCase: "2004",
+        lastCase: "2006",
+        source: "Aves domesticas, patos de criação",
+        notes: "Todos os casos ocorreram entre 2004–2006 durante o surto inicial no Sudeste Asiatico. Nenhum caso desde entao. Programa bem-sucedido de erradicacao e vigilancia. O pais mantem vigilancia ativa mas o H5N1 nao circula mais em aves domesticas.",
+        yearlyData: { "2004": {c:17,d:12}, "2005": {c:5,d:2}, "2006": {c:3,d:3} }
+    },
+    {
+        id: "tr", name: "Turquia", flag: "🇹🇷", lat: 38.96, lng: 35.24,
+        totalCases: 12, totalDeaths: 4,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.2 (historico)",
+        firstCase: "2006",
+        lastCase: "2006",
+        source: "Aves domesticas, patos, galinhas",
+        notes: "Surto concentrado em 2006 no leste da Turquia, na fronteira com paises da Asia Central. Familias que criavam aves domesticas foram as mais afetadas. Nenhum caso desde 2006.",
+        yearlyData: { "2006": {c:12,d:4} }
+    },
+    {
+        id: "az", name: "Azerbaijao", flag: "🇦🇿", lat: 40.14, lng: 47.58,
+        totalCases: 8, totalDeaths: 5,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.2",
+        firstCase: "2006",
+        lastCase: "2006",
+        source: "Cisnes selvagens, aves aquaticas",
+        notes: "Casos em 2006 ligados a contato com aves selvagens mortas em areas costeiras do Mar Caspio. Cluster familiar sugere transmissao limitada pessoa-a-pessoa que nao se sustentou.",
+        yearlyData: { "2006": {c:8,d:5} }
+    },
+    {
+        id: "bd", name: "Bangladesh", flag: "🇧🇩", lat: 23.68, lng: 90.36,
+        totalCases: 11, totalDeaths: 1,
+        cases2025: 3, deaths2025: 0, cases2026: 1, deaths2026: 1,
+        risk: "moderate",
+        clade: "2.3.2.1a",
+        firstCase: "2008",
+        lastCase: "2026",
+        source: "Aves domesticas (patos, galinhas), mercados de aves vivas",
+        notes: "Em 2025: 3 casos confirmados. Em 2026: 1 caso fatal em crianca (fev/2026), exposicao a aves domesticas. Virus semelhante ao clade circulando localmente desde 2011. O pais tem grande populacao de aves domesticas e vigilancia limitada em areas rurais.",
+        yearlyData: { "2008": {c:1,d:0}, "2011": {c:2,d:0}, "2012": {c:1,d:0}, "2013": {c:1,d:0}, "2015": {c:1,d:0}, "2023": {c:1,d:0}, "2024": {c:1,d:0}, "2025": {c:3,d:0}, "2026": {c:1,d:1} }
+    },
+    {
+        id: "iq", name: "Iraque", flag: "🇮🇶", lat: 33.22, lng: 43.68,
+        totalCases: 3, totalDeaths: 3,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.2",
+        firstCase: "2006",
+        lastCase: "2006",
+        source: "Aves domesticas",
+        notes: "Todos os 3 casos foram fatais e ocorreram em 2006. Letalidade de 100%. Casos ligados a criacao de aves domesticas no norte do pais.",
+        yearlyData: { "2006": {c:3,d:3} }
+    },
+    {
+        id: "in", name: "India", flag: "🇮🇳", lat: 20.59, lng: 78.96,
+        totalCases: 3, totalDeaths: 3,
+        cases2025: 2, deaths2025: 2, cases2026: 0, deaths2026: 0,
+        risk: "moderate",
+        clade: "2.3.2.1a",
+        firstCase: "2024",
+        lastCase: "2025",
+        source: "Aves domesticas, surtos em aves nos distritos vizinhos",
+        notes: "Em 2025: 2 casos fatais (1 crianca, 1 adulto). O caso pediatrico teve exposicao a aves, embora sem surto aviario confirmado no distrito — distritos vizinhos tinham surtos. Clade 2.3.2.1a, circula na regiao. India tem grande populacao aviaria e vigilancia em expansao.",
+        yearlyData: { "2024": {c:1,d:1}, "2025": {c:2,d:2} }
+    },
+    {
+        id: "pk", name: "Paquistao", flag: "🇵🇰", lat: 30.38, lng: 69.35,
+        totalCases: 3, totalDeaths: 1,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.2",
+        firstCase: "2007",
+        lastCase: "2007",
+        source: "Aves domesticas",
+        notes: "3 casos em 2007 no norte do pais. Apenas 1 fatal. Possivel transmissao limitada entre humanos em um cluster familiar, mas nao confirmada.",
+        yearlyData: { "2007": {c:3,d:1} }
+    },
+    {
+        id: "mm", name: "Mianmar", flag: "🇲🇲", lat: 21.91, lng: 95.96,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.2",
+        firstCase: "2007",
+        lastCase: "2007",
+        source: "Aves domesticas",
+        notes: "Apenas 1 caso confirmado em 2007. Nao fatal.",
+        yearlyData: { "2007": {c:1,d:0} }
+    },
+    {
+        id: "la", name: "Laos", flag: "🇱🇦", lat: 19.86, lng: 102.50,
+        totalCases: 2, totalDeaths: 2,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.2.1",
+        firstCase: "2007",
+        lastCase: "2007",
+        source: "Aves domesticas",
+        notes: "2 casos em 2007, ambos fatais. Letalidade de 100%.",
+        yearlyData: { "2007": {c:2,d:2} }
+    },
+    {
+        id: "dj", name: "Djibuti", flag: "🇩🇯", lat: 11.83, lng: 42.59,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.2",
+        firstCase: "2006",
+        lastCase: "2006",
+        source: "Aves domesticas",
+        notes: "Apenas 1 caso em 2006. Nao fatal. Um dos poucos paises africanos fora do norte da Africa a reportar H5N1.",
+        yearlyData: { "2006": {c:1,d:0} }
+    },
+    {
+        id: "ng", name: "Nigeria", flag: "🇳🇬", lat: 9.08, lng: 8.68,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.2.1c",
+        firstCase: "2007",
+        lastCase: "2007",
+        source: "Aves domesticas",
+        notes: "1 caso em 2007. Nao fatal. O H5N1 chegou a Africa Ocidental via rotas migratorias de aves.",
+        yearlyData: { "2007": {c:1,d:0} }
+    },
+    {
+        id: "np", name: "Nepal", flag: "🇳🇵", lat: 28.39, lng: 84.12,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.2.1",
+        firstCase: "2009",
+        lastCase: "2009",
+        source: "Aves domesticas",
+        notes: "1 caso em 2009. Nao fatal.",
+        yearlyData: { "2009": {c:1,d:0} }
+    },
+    {
+        id: "us", name: "Estados Unidos", flag: "🇺🇸", lat: 39.83, lng: -98.58,
+        totalCases: 71, totalDeaths: 1,
+        cases2025: 3, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "moderate",
+        clade: "2.3.4.4b (genotipos B3.13 e D1.1)",
+        firstCase: "2022",
+        lastCase: "2025",
+        source: "Gado leiteiro, aves domesticas, aves de quintal, gatos",
+        notes: "Surto historico a partir de 2024: H5N1 clade 2.3.4.4b detectado em gado leiteiro em multiples estados. 70+ casos humanos desde 2024, maioria em trabalhadores de granjas e laticinios. 1 obito em 2025 (H5N5, Washington). Sintomas geralmente leves (conjuntivite). Genotipo B3.13 dominante em bovinos, D1.1 em aves selvagens. Vigilancia de esgoto ativa. Nenhuma transmissao pessoa-a-pessoa.",
+        yearlyData: { "2022": {c:1,d:0}, "2024": {c:67,d:0}, "2025": {c:3,d:1} }
+    },
+    {
+        id: "ca", name: "Canada", flag: "🇨🇦", lat: 56.13, lng: -106.35,
+        totalCases: 2, totalDeaths: 1,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.4.4b",
+        firstCase: "2024",
+        lastCase: "2024",
+        source: "Aves domesticas, exposicao a aves infectadas",
+        notes: "1 caso em 2024 (adolescente, hospitalizado, grave) e 1 caso fatal em novembro de 2024. Ambos ligados ao clade 2.3.4.4b que circula em aves selvagens e domesticas na America do Norte.",
+        yearlyData: { "2024": {c:2,d:1} }
+    },
+    {
+        id: "mx", name: "Mexico", flag: "🇲🇽", lat: 23.63, lng: -102.55,
+        totalCases: 1, totalDeaths: 1,
+        cases2025: 1, deaths2025: 1, cases2026: 0, deaths2026: 0,
+        risk: "moderate",
+        clade: "2.3.4.4b",
+        firstCase: "2025",
+        lastCase: "2025",
+        source: "Exposicao nao identificada (sem contato direto com aves relatado)",
+        notes: "1 caso fatal em crianca em 2025. Incomum: sem exposicao direta a aves identificada. Clade 2.3.4.4b, o mesmo que circula na America do Norte. Isso demonstra que casos esporadicos podem ocorrer sem exposicao animal conhecida.",
+        yearlyData: { "2025": {c:1,d:1} }
+    },
+    {
+        id: "cl", name: "Chile", flag: "🇨🇱", lat: -35.68, lng: -71.54,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.4.4b",
+        firstCase: "2023",
+        lastCase: "2023",
+        source: "Aves domesticas",
+        notes: "1 caso em 2023 (marco). Nao fatal. Parte da expansao do clade 2.3.4.4b para a America do Sul.",
+        yearlyData: { "2023": {c:1,d:0} }
+    },
+    {
+        id: "ec", name: "Equador", flag: "🇪🇨", lat: -1.83, lng: -78.18,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.4.4b",
+        firstCase: "2023",
+        lastCase: "2023",
+        source: "Aves domesticas",
+        notes: "1 caso em janeiro de 2023. Nao fatal. Exposicao a aves domesticas infectadas.",
+        yearlyData: { "2023": {c:1,d:0} }
+    },
+    {
+        id: "gb", name: "Reino Unido", flag: "🇬🇧", lat: 55.38, lng: -3.44,
+        totalCases: 2, totalDeaths: 0,
+        cases2025: 1, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.4.4b",
+        firstCase: "2022",
+        lastCase: "2025",
+        source: "Aves domesticas (criacao de quintal), aves selvagens",
+        notes: "1 caso em 2022 (criador de patos, assintomatico). 1 caso em 2025. Ambos nao fatais. O H5N1 2.3.4.4b causou grandes surtos em aves selvagens e domesticas no Reino Unido.",
+        yearlyData: { "2022": {c:1,d:0}, "2025": {c:1,d:0} }
+    },
+    {
+        id: "au", name: "Australia", flag: "🇦🇺", lat: -25.27, lng: 133.78,
+        totalCases: 1, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.4.4b",
+        firstCase: "2024",
+        lastCase: "2024",
+        source: "Aves domesticas, exposicao em fazenda",
+        notes: "1 caso em 2024. Nao fatal. Primeiro caso humano de H5N1 na Australia. Resultado de exposicao a aves infectadas em fazenda.",
+        yearlyData: { "2024": {c:1,d:0} }
+    },
+    {
+        id: "es", name: "Espanha", flag: "🇪🇸", lat: 40.46, lng: -3.75,
+        totalCases: 2, totalDeaths: 0,
+        cases2025: 0, deaths2025: 0, cases2026: 0, deaths2026: 0,
+        risk: "low",
+        clade: "2.3.4.4b",
+        firstCase: "2022",
+        lastCase: "2022",
+        source: "Aves selvagens, fazenda de visons",
+        notes: "2 casos em 2022 em trabalhadores de uma fazenda de visons. Nao fatais. Os visons foram infectados por aves selvagens. Casos demonstram risco de reassortimento em fazendas de animais de pelo.",
+        yearlyData: { "2022": {c:2,d:0} }
+    }
+];
+
+// ============================================
+// CALCULOS GLOBAIS
+// ============================================
+let totalGlobalCases = 0, totalGlobalDeaths = 0;
+countriesData.forEach(c => {
+    totalGlobalCases += c.totalCases;
+    totalGlobalDeaths += c.totalDeaths;
+});
+const globalCFR = totalGlobalDeaths > 0 ? ((totalGlobalDeaths / totalGlobalCases) * 100).toFixed(0) : 0;
+
+// ============================================
+// MAPA LEAFLET
+// ============================================
+const map = L.map('map', {
+    center: [20, 15],
+    zoom: 3,
+    minZoom: 2,
+    maxZoom: 8,
+    zoomControl: true,
+    attributionControl: false
+});
+
+// Tile layer - mapa escuro
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 19
+}).addTo(map);
+
+// Atribuicao personalizada
+L.control.attribution({ prefix: false, position: 'bottomright' })
+    .addAttribution('CartoDB | OMS | CDC | OPAS')
+    .addTo(map);
+
+// ============================================
+// MARCADORES
+// ============================================
+const markers = {};
+let activeFilter = 'all';
+
+function getMarkerSize(cases) {
+    if (cases >= 200) return 'size-xl';
+    if (cases >= 50) return 'size-lg';
+    if (cases >= 10) return 'size-md';
+    if (cases >= 3) return 'size-sm';
+    return 'size-xs';
+}
+
+function getRiskClass(risk) {
+    return 'level-' + risk;
+}
+
+function getCasesForFilter(country, filter) {
+    switch(filter) {
+        case '2026': return country.cases2026;
+        case '2025': return country.cases2025;
+        case '2024': return (country.yearlyData['2024'] || {}).c || 0;
+        case '2020s':
+            let s1 = 0;
+            for (let y = 2020; y <= 2024; y++) { s1 += (country.yearlyData[String(y)] || {}).c || 0; }
+            return s1;
+        case '2010s':
+            let s2 = 0;
+            for (let y = 2010; y <= 2019; y++) { s2 += (country.yearlyData[String(y)] || {}).c || 0; }
+            return s2;
+        case '2000s':
+            let s3 = 0;
+            for (let y = 2003; y <= 2009; y++) { s3 += (country.yearlyData[String(y)] || {}).c || 0; }
+            return s3;
+        default: return country.totalCases;
+    }
+}
+
+function createMarkerIcon(country, filter) {
+    const cases = getCasesForFilter(country, filter);
+    const sizeClass = cases > 0 ? getMarkerSize(cases) : 'size-xs';
+    const riskClass = cases > 0 ? getRiskClass(country.risk) : 'level-low';
+    const displayCount = cases >= 3 ? cases : '';
+
+    return L.divIcon({
+        className: '',
+        html: `<div class="custom-marker ${sizeClass} ${riskClass}"><span class="marker-count">${displayCount}</span></div>`,
+        iconSize: [0, 0],
+        iconAnchor: [cases >= 200 ? 20 : cases >= 50 ? 16 : cases >= 10 ? 12 : cases >= 3 ? 9 : 6,
+                     cases >= 200 ? 20 : cases >= 50 ? 16 : cases >= 10 ? 12 : cases >= 3 ? 9 : 6]
+    });
+}
+
+// Gerar popup HTML detalhado
+function createPopupContent(country) {
+    const cfr = country.totalDeaths > 0 ? ((country.totalDeaths / country.totalCases) * 100).toFixed(0) : 0;
+    const riskLabel = { critical: 'CRITICO', high: 'ALTO', moderate: 'MODERADO', low: 'BAIXO' };
+    const riskClass = { critical: 'risk-critical', high: 'risk-high', moderate: 'risk-moderate', low: 'risk-low' };
+
+    // Anos com dados
+    const years = Object.keys(country.yearlyData).sort();
+    const maxCasesYear = Math.max(...years.map(y => country.yearlyData[y].c), 1);
+
+    // Mini grafico de barras
+    let barChart = '<div class="popup-bar-chart">';
+    years.slice(-8).forEach(y => {
+        const h = Math.max(2, (country.yearlyData[y].c / maxCasesYear) * 36);
+        barChart += `<div class="popup-bar" style="height:${h}px"><span class="popup-bar-label">${y.slice(2)}</span></div>`;
+    });
+    barChart += '</div>';
+
+    // Tabela de anos
+    let yearRows = '';
+    years.slice().reverse().slice(0, 8).forEach(y => {
+        const d = country.yearlyData[y];
+        yearRows += `<div class="popup-year-row">
+            <span class="popup-year-label">${y}</span>
+            <span class="popup-year-cases">${d.c} casos</span>
+            <span class="popup-year-deaths">${d.d} obitos</span>
+        </div>`;
+    });
+
+    return `
+    <div class="popup-header">
+        <div class="popup-country-name">
+            <span class="popup-flag">${country.flag}</span>
+            ${country.name}
+        </div>
+        <div class="popup-risk-badge ${riskClass[country.risk]}">
+            <i class="fas fa-shield-virus"></i> Risco ${riskLabel[country.risk]}
+        </div>
+    </div>
+    <div class="popup-body">
+        <div class="popup-stats-row">
+            <div class="popup-stat">
+                <div class="popup-stat-value cases-val">${country.totalCases}</div>
+                <div class="popup-stat-label">Casos</div>
+            </div>
+            <div class="popup-stat">
+                <div class="popup-stat-value deaths-val">${country.totalDeaths}</div>
+                <div class="popup-stat-label">Obitos</div>
+            </div>
+            <div class="popup-stat">
+                <div class="popup-stat-value cfr-val">${cfr}%</div>
+                <div class="popup-stat-label">Letalidade</div>
+            </div>
+        </div>
+
+        <div class="popup-detail-section">
+            <div class="popup-detail-title"><i class="fas fa-dna"></i> Clade / Genotipo</div>
+            <div class="popup-detail-text">
+                <span class="popup-tag tag-clade">${country.clade}</span>
+            </div>
+        </div>
+
+        <div class="popup-detail-section">
+            <div class="popup-detail-title"><i class="fas fa-calendar-alt"></i> Periodo de Casos</div>
+            <div class="popup-detail-text">
+                Primeiro caso: <strong>${country.firstCase}</strong> &nbsp;|&nbsp; Ultimo: <strong>${country.lastCase}</strong>
+                ${country.cases2025 > 0 ? `<span class="popup-tag tag-recent">2025: ${country.cases2025} casos</span>` : ''}
+                ${country.cases2026 > 0 ? `<span class="popup-tag tag-recent">2026: ${country.cases2026} casos</span>` : ''}
+            </div>
+        </div>
+
+        <div class="popup-detail-section">
+            <div class="popup-detail-title"><i class="fas fa-search"></i> Fonte de Exposicao</div>
+            <div class="popup-detail-text">
+                <span class="popup-tag tag-source">${country.source}</span>
+            </div>
+        </div>
+
+        <div class="popup-detail-section">
+            <div class="popup-detail-title"><i class="fas fa-chart-bar"></i> Evolucao Anual</div>
+            ${barChart}
+            <div style="height:18px"></div>
+            ${yearRows}
+        </div>
+
+        <div class="popup-detail-section">
+            <div class="popup-detail-title"><i class="fas fa-info-circle"></i> Observacoes</div>
+            <div class="popup-detail-text">${country.notes}</div>
+        </div>
+    </div>`;
+}
+
+// Criar marcadores
+function createMarkers(filter) {
+    // Remover marcadores existentes
+    Object.values(markers).forEach(m => map.removeLayer(m));
+
+    countriesData.forEach(country => {
+        const cases = getCasesForFilter(country, filter);
+        // Mostrar apenas paises com casos no periodo filtrado
+        if (filter !== 'all' && cases === 0) return;
+
+        const marker = L.marker([country.lat, country.lng], {
+            icon: createMarkerIcon(country, filter)
+        });
+
+        marker.bindPopup(createPopupContent(country), {
+            maxWidth: 360,
+            minWidth: 320,
+            maxHeight: 500,
+            autoPan: true,
+            autoPanPadding: [50, 50]
+        });
+
+        marker.on('click', () => {
+            // Destacar na lista
+            document.querySelectorAll('.country-list-item').forEach(el => el.classList.remove('active'));
+            const listItem = document.getElementById('list-' + country.id);
+            if (listItem) {
+                listItem.classList.add('active');
+                listItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+
+        marker.addTo(map);
+        markers[country.id] = marker;
+    });
+}
+
+createMarkers('all');
+
+// ============================================
+// LISTA DE PAISES NA SIDEBAR
+// ============================================
+function renderCountryList(filter, searchTerm) {
+    const container = document.getElementById('countryList');
+    let filtered = countriesData
+        .map(c => ({ ...c, filteredCases: getCasesForFilter(c, filter) }))
+        .filter(c => filter === 'all' || c.filteredCases > 0);
+
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filtered = filtered.filter(c => c.name.toLowerCase().includes(term));
+    }
+
+    // Ordenar por casos no periodo filtrado (decrescente)
+    filtered.sort((a, b) => b.filteredCases - a.filteredCases);
+
+    container.innerHTML = filtered.map(c => `
+        <div class="country-list-item" id="list-${c.id}" data-id="${c.id}">
+            <div class="country-dot ${c.risk}"></div>
+            <div class="country-info">
+                <div class="country-name">${c.flag} ${c.name}</div>
+                <div class="country-sub">${c.filteredCases} casos | ${c.risk === 'critical' ? (c.totalDeaths > 0 ? Math.round(c.totalDeaths/c.totalCases*100)+'% CFR' : '') : ''} ${c.clade.split(',')[0].trim().substring(0,15)}</div>
+            </div>
+            <div class="country-cases">${c.filteredCases}</div>
+        </div>
+    `).join('');
+
+    // Clique na lista -> focar no mapa
+    container.querySelectorAll('.country-list-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const id = item.dataset.id;
+            const country = countriesData.find(c => c.id === id);
+            if (country && markers[id]) {
+                map.setView([country.lat, country.lng], 5, { animate: true });
+                markers[id].openPopup();
+                document.querySelectorAll('.country-list-item').forEach(el => el.classList.remove('active'));
+                item.classList.add('active');
+            }
+        });
+    });
+}
+
+renderCountryList('all', '');
+
+// ============================================
+// FILTROS
+// ============================================
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        createMarkers(activeFilter);
+        renderCountryList(activeFilter, document.getElementById('searchInput').value);
+        updateHeaderStats(activeFilter);
+    });
+});
+
+// Busca
+document.getElementById('searchInput').addEventListener('input', (e) => {
+    renderCountryList(activeFilter, e.target.value);
+});
+
+// Atualizar stats do header
+function updateHeaderStats(filter) {
+    let cases = 0, deaths = 0, countryCount = 0;
+    countriesData.forEach(c => {
+        const fc = getCasesForFilter(c, filter);
+        if (fc > 0) {
+            cases += fc;
+            // Calcular mortes no periodo
+            if (filter === '2026') { deaths += c.deaths2026; }
+            else if (filter === '2025') { deaths += c.deaths2025; }
+            else { deaths += c.totalDeaths; }
+            countryCount++;
+        }
+    });
+    if (filter === 'all') {
+        cases = totalGlobalCases;
+        deaths = totalGlobalDeaths;
+        countryCount = countriesData.length;
+    }
+    const cfr = deaths > 0 ? ((deaths / cases) * 100).toFixed(0) : 0;
+    document.getElementById('statCases').textContent = cases.toLocaleString('pt-BR');
+    document.getElementById('statDeaths').textContent = deaths.toLocaleString('pt-BR');
+    document.getElementById('statCFR').textContent = cfr + '%';
+    document.getElementById('statCountries').textContent = countryCount;
+}
+
+// ============================================
+// SIDEBAR TOGGLE
+// ============================================
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+
+sidebarToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+    const icon = sidebarToggle.querySelector('i');
+    if (sidebar.classList.contains('collapsed')) {
+        icon.className = 'fas fa-chevron-left';
+    } else {
+        icon.className = 'fas fa-chevron-right';
+    }
+});
+
+// ============================================
+// LEGENDA
+// ============================================
+const legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function() {
+    const div = L.DomUtil.create('div', '');
+    div.style.cssText = 'background:rgba(17,24,39,0.92);backdrop-filter:blur(12px);border:1px solid #2a3550;border-radius:10px;padding:14px 16px;color:#e8ecf4;font-family:Space Grotesk,sans-serif;font-size:12px;min-width:180px;';
+    div.innerHTML = `
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <i class="fas fa-palette" style="color:#f97316"></i> Legenda
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.5)"></div>
+            <span class="legend-label">Risco Critico</span>
+            <span class="legend-range">100+ casos</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background:#f97316;box-shadow:0 0 8px rgba(249,115,22,0.5)"></div>
+            <span class="legend-label">Risco Alto</span>
+            <span class="legend-range">10–99</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background:#eab308;box-shadow:0 0 8px rgba(234,179,8,0.4)"></div>
+            <span class="legend-label">Risco Moderado</span>
+            <span class="legend-range">3–9</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.4)"></div>
+            <span class="legend-label">Risco Baixo</span>
+            <span class="legend-range">1–2</span>
+        </div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #2a3550;font-size:9px;color:#64748b">
+            Tamanho do marcador proporcional ao numero de casos
+        </div>
+    `;
+    return div;
+};
+legend.addTo(map);
+
+// ============================================
+// ANIMACAO DE ENTRADA DOS MARCADORES
+// ============================================
+setTimeout(() => {
+    document.querySelectorAll('.custom-marker').forEach((el, i) => {
+        el.style.opacity = '0';
+        el.style.transform = 'scale(0)';
+        el.style.transition = `all 0.4s cubic-bezier(0.16,1,0.3,1) ${i * 50}ms`;
+        requestAnimationFrame(() => {
+            el.style.opacity = '1';
+            el.style.transform = 'scale(1)';
+        });
+    });
+}, 300);
+
+// Responsivo: esconder sidebar em mobile
+if (window.innerWidth < 768) {
+    sidebar.classList.add('collapsed');
+}
+</script>
+</body>
+</html>
